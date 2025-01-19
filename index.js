@@ -24,35 +24,43 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const hrCollection = client.db("smartTrack").collection("users");
+    const userCollection = client.db("smartTrack").collection("users");
 
     // users related api
     // hr
     app.get("/users", async (req, res) => {
-      const result = await hrCollection.find().toArray();
+      const result = await userCollection.find().toArray();
       res.send(result);
     });
 
     app.post("/users", async (req, res) => {
-        const user = req.body;
-        console.log(user);
-        // insert Email if user doesn't exists.
-        // we can do this in many ways(1. email unique, 2. usert, 3. simple checking)
-        const query = { email: user?.email };
-        const existingUser = await hrCollection.findOne(query);
-        if (existingUser) {
-          return res.send({ message: "User Already Exists", insertedId: null });
-        }
-        const result = await hrCollection.insertOne(user);
-        res.send(result);
-      });
+      const user = req.body;
+      console.log(user);
+      const query = { email: user?.email };
+      const existingUser = await userCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "User Already Exists", insertedId: null });
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
 
+    app.get("/users/admin/:email", async (req, res) => {
+      const email = req.params.email;
 
+      // // checkign token email and user email same or not
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "Forbidden Access" });
+      // }
 
-
-
-
-
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user.role === "HR";
+      }
+      res.send({ admin });
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
