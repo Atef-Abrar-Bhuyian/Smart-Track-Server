@@ -25,17 +25,20 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     const userCollection = client.db("smartTrack").collection("users");
+    const assetsCollection = client.db("smartTrack").collection("assets");
 
     // users related api
     // hr
+
+    // Users Get
     app.get("/users", async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
 
+    // Users Post
     app.post("/users", async (req, res) => {
       const user = req.body;
-      console.log(user);
       const query = { email: user?.email };
       const existingUser = await userCollection.findOne(query);
       if (existingUser) {
@@ -45,6 +48,19 @@ async function run() {
       res.send(result);
     });
 
+    // Assets Post
+    app.post("/assets", async (req, res) => {
+      const asset = req.body;
+      const query = {  productName: asset?.productName };
+      const existingAsset = await assetsCollection.findOne(query);
+      if (existingAsset) {
+        return res.send({ message: "Asset Already Exists", insertedId: null });
+      }
+      const result = await assetsCollection.insertOne(asset);
+      res.send(result);
+    });
+
+    // Admin Check
     app.get("/users/admin/:email", async (req, res) => {
       const email = req.params.email;
 
