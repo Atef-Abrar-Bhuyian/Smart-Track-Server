@@ -24,14 +24,35 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    const hrCollection = client.db("smartTrack").collection("usersHr");
+    const hrCollection = client.db("smartTrack").collection("users");
 
     // users related api
     // hr
-    app.get("/userHr", async (req, res) => {
+    app.get("/users", async (req, res) => {
       const result = await hrCollection.find().toArray();
       res.send(result);
     });
+
+    app.post("/users", async (req, res) => {
+        const user = req.body;
+        console.log(user);
+        // insert Email if user doesn't exists.
+        // we can do this in many ways(1. email unique, 2. usert, 3. simple checking)
+        const query = { email: user?.email };
+        const existingUser = await hrCollection.findOne(query);
+        if (existingUser) {
+          return res.send({ message: "User Already Exists", insertedId: null });
+        }
+        const result = await hrCollection.insertOne(user);
+        res.send(result);
+      });
+
+
+
+
+
+
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
