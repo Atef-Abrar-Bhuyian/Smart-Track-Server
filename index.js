@@ -30,6 +30,24 @@ async function run() {
     // users related api
     // hr
 
+    // Admin Check
+    app.get("/users/admin/:email", async (req, res) => {
+      const email = req.params.email;
+
+      // // checkign token email and user email same or not
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "Forbidden Access" });
+      // }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user.role === "HR";
+      }
+      res.send({ admin });
+    });
+
     // Users Get
     app.get("/users", async (req, res) => {
       const result = await userCollection.find().toArray();
@@ -51,7 +69,7 @@ async function run() {
     // Assets Post
     app.post("/assets", async (req, res) => {
       const asset = req.body;
-      const query = {  productName: asset?.productName };
+      const query = { productName: asset?.productName };
       const existingAsset = await assetsCollection.findOne(query);
       if (existingAsset) {
         return res.send({ message: "Asset Already Exists", insertedId: null });
@@ -60,22 +78,12 @@ async function run() {
       res.send(result);
     });
 
-    // Admin Check
-    app.get("/users/admin/:email", async (req, res) => {
-      const email = req.params.email;
-
-      // // checkign token email and user email same or not
-      // if (email !== req.decoded.email) {
-      //   return res.status(403).send({ message: "Forbidden Access" });
-      // }
-
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user.role === "HR";
-      }
-      res.send({ admin });
+    // Assets Get
+    app.get("/assetsList/:email", async (req, res) => {
+      const hrEmail = req.params.email;
+      const query = { hrEmail: hrEmail };
+      const result = await assetsCollection.find(query).toArray();
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
