@@ -193,7 +193,13 @@ async function run() {
       res.send(result);
     });
 
-    
+    // Delete an Asset
+    app.delete("/assetsList/:email", async (req, res) => {
+      const { id } = req.body;
+      const query = { _id: new ObjectId(id) };
+      const result = await assetsCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
