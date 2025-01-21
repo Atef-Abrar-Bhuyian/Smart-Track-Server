@@ -87,7 +87,7 @@ async function run() {
       res.send(result);
     });
 
-    // Add employe too team
+    // employees not in team
     app.get("/usersNotInTeam", async (req, res) => {
       // Fetch all users
       const allUsers = await userCollection.find().toArray();
@@ -100,7 +100,7 @@ async function run() {
         ])
         .toArray();
       // Extract employee_ids
-      const teamMemberIds = teams.map((team) => team.employees.employee_id);
+      const teamMemberIds = teams.map((team) => team.employees?.employee_id);
 
       // Filter users who are not in any team and do not have the role 'HR'
       const usersNotInTeam = allUsers.filter(
@@ -111,6 +111,52 @@ async function run() {
       // Send the filtered users
       res.send(usersNotInTeam);
     });
+
+    // employee add in team
+    app.post("/addToTeam", async (req, res) => {
+      const { employee_id, hrEmail } = req.body;
+
+      // Check if the employee is already in any team
+      const existingTeam = await teamCollection.findOne({
+        "employees.employee_id": employee_id, // Check if employee_id exists in any team
+      });
+
+      if (existingTeam) {
+        return res
+          .status(400)
+          .send({ message: "Employee is already in a team" });
+      }
+
+      // Check if the HR already exists in the database
+      const existingHRTeam = await teamCollection.findOne({ hrEmail });
+
+      if (existingHRTeam) {
+        // HR exists, directly add the employee to the 'employees' array
+        await teamCollection.updateOne(
+          { hrEmail },
+          { $push: { employees: { employee_id } } }
+        );
+
+        return res
+          .status(200)
+          .send({ message: "Successfully Added", insertedId: true });
+      }
+
+      // If HR team does not exist, create a new team and add the employee
+      const result = await teamCollection.insertOne({
+        hrEmail,
+        employees: [{ employee_id }],
+      });
+
+      res
+        .status(200)
+        .send({ message: "Successfully Added", insertedId: result.insertedId });
+    });
+
+   
+
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
