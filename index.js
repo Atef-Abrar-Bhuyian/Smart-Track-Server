@@ -26,6 +26,7 @@ async function run() {
     await client.connect();
     const userCollection = client.db("smartTrack").collection("users");
     const assetsCollection = client.db("smartTrack").collection("assets");
+    const teamCollection = client.db("smartTrack").collection("teams");
 
     // users related api
     // hr
@@ -86,6 +87,30 @@ async function run() {
       res.send(result);
     });
 
+    // Add employe too team
+    app.get("/usersNotInTeam", async (req, res) => {
+      // Fetch all users
+      const allUsers = await userCollection.find().toArray();
+
+      // Fetch all employee_ids from the teamCollection using aggregation
+      const teams = await teamCollection
+        .aggregate([
+          { $unwind: "$employees" },
+          { $project: { "employees.employee_id": 1 } },
+        ])
+        .toArray();
+      // Extract employee_ids
+      const teamMemberIds = teams.map((team) => team.employees.employee_id);
+
+      // Filter users who are not in any team and do not have the role 'HR'
+      const usersNotInTeam = allUsers.filter(
+        (user) =>
+          !teamMemberIds.includes(user._id.toString()) && user.role !== "HR"
+      );
+
+      // Send the filtered users
+      res.send(usersNotInTeam);
+    });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
