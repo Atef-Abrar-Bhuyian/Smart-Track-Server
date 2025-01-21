@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 // middleware
 app.use(cors());
@@ -114,11 +114,11 @@ async function run() {
 
     // employee add in team
     app.post("/addToTeam", async (req, res) => {
-      const { employee_id, hrEmail } = req.body;
+      const { employee_id, hrEmail, employeeName, employeePhoto } = req.body;
 
       // Check if the employee is already in any team
       const existingTeam = await teamCollection.findOne({
-        "employees.employee_id": employee_id, // Check if employee_id exists in any team
+        "employees.employee_id": employee_id,
       });
 
       if (existingTeam) {
@@ -134,7 +134,7 @@ async function run() {
         // HR exists, directly add the employee to the 'employees' array
         await teamCollection.updateOne(
           { hrEmail },
-          { $push: { employees: { employee_id } } }
+          { $push: { employees: { employee_id, employeeName, employeePhoto } } }
         );
 
         return res
@@ -145,7 +145,7 @@ async function run() {
       // If HR team does not exist, create a new team and add the employee
       const result = await teamCollection.insertOne({
         hrEmail,
-        employees: [{ employee_id }],
+        employees: [{ employee_id, employeeName, employeePhoto }],
       });
 
       res
@@ -153,9 +153,23 @@ async function run() {
         .send({ message: "Successfully Added", insertedId: result.insertedId });
     });
 
-   
+    // app.get("/myTeam/:email", async (req, res) => {
+    //   const email = req.params.email;
+    //   const query = { hrEmail: email };
+    //   const result = await teamCollection.find(query).toArray();
+    //   res.send(result);
+    // });
 
+    // Delete an employee from team
 
+    app.delete("/myTeam/:email", async (req, res) => {
+      const { deleteUserId } = req.body;
+      const query = { "employees.employee_id": deleteUserId };
+      const update = { $pull: { employees: { employee_id: deleteUserId } } };
+
+      const result = await teamCollection.updateOne(query, update);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
