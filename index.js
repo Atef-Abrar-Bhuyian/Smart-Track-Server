@@ -70,7 +70,10 @@ async function run() {
     // Assets Post
     app.post("/assets", async (req, res) => {
       const asset = req.body;
-      const query = { productName: asset?.productName };
+      const query = {
+        hrEmail: asset?.hrEmail,
+        productName: asset?.productName,
+      };
       const existingAsset = await assetsCollection.findOne(query);
       if (existingAsset) {
         return res.send({ message: "Asset Already Exists", insertedId: null });
@@ -116,6 +119,14 @@ async function run() {
     app.post("/addToTeam", async (req, res) => {
       const { employee_id, hrEmail, employeeName, employeePhoto } = req.body;
 
+      const query = { email: hrEmail };
+      const hrInfo = userCollection.find(query);
+      const hrPackage = await hrInfo
+        .map((package) => package.selectedPackage)
+        .toArray();
+
+      const packageValue = hrPackage[0];
+
       // Check if the employee is already in any team
       const existingTeam = await teamCollection.findOne({
         "employees.employee_id": employee_id,
@@ -126,9 +137,20 @@ async function run() {
           .status(400)
           .send({ message: "Employee is already in a team" });
       }
-
       // Check if the HR already exists in the database
       const existingHRTeam = await teamCollection.findOne({ hrEmail });
+
+      if (packageValue === "basic" && existingHRTeam?.employees.length === 5) {
+        return res.status(400).send({ message: "limit reached" });
+      }
+
+      if (packageValue === "advance" && existingHRTeam?.employees.length === 10) {
+        return res.send({ message: "limit reached" });
+      }
+
+      if (packageValue === "ultimate" && existingHRTeam?.employees.length === 20) {
+        return res.send({ message: "limit reached" });
+      }
 
       if (existingHRTeam) {
         // HR exists, directly add the employee to the 'employees' array
@@ -153,15 +175,15 @@ async function run() {
         .send({ message: "Successfully Added", insertedId: result.insertedId });
     });
 
-    // app.get("/myTeam/:email", async (req, res) => {
-    //   const email = req.params.email;
-    //   const query = { hrEmail: email };
-    //   const result = await teamCollection.find(query).toArray();
-    //   res.send(result);
-    // });
+    // get my team's employees
+    app.get("/myTeam/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { hrEmail: email };
+      const result = await teamCollection.find(query).toArray();
+      res.send(result);
+    });
 
     // Delete an employee from team
-
     app.delete("/myTeam/:email", async (req, res) => {
       const { deleteUserId } = req.body;
       const query = { "employees.employee_id": deleteUserId };
@@ -170,6 +192,8 @@ async function run() {
       const result = await teamCollection.updateOne(query, update);
       res.send(result);
     });
+
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
