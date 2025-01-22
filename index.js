@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -28,26 +29,67 @@ async function run() {
     const assetsCollection = client.db("smartTrack").collection("assets");
     const teamCollection = client.db("smartTrack").collection("teams");
 
+    // jwt related api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+
+    // middlewares
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized Access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "Unauthorized Access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
+    // use verify admin after vefiry token
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role === "HR";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      next();
+    };
+
     // users related api
     // hr
 
     // Admin Check
-    app.get("/users/admin/:email", async (req, res) => {
-      const email = req.params.email;
+    app.get(
+      "/users/admin/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const email = req.params.email;
 
-      // // checkign token email and user email same or not
-      // if (email !== req.decoded.email) {
-      //   return res.status(403).send({ message: "Forbidden Access" });
-      // }
+        // checkign token email and user email same or not
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
 
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user.role === "HR";
+        const query = { email: email };
+        const user = await userCollection.findOne(query);
+        let admin = false;
+        if (user) {
+          admin = user.role === "HR";
+        }
+        res.send({ admin });
       }
-      res.send({ admin });
-    });
+    );
 
     // Users Get
     app.get("/users", async (req, res) => {
@@ -68,8 +110,15 @@ async function run() {
     });
 
     // Assets Post
-    app.post("/assets", async (req, res) => {
+    app.post("/assets", verifyToken, verifyAdmin, async (req, res) => {
       const asset = req.body;
+      const email = asset?.hrEmail;
+
+      // checkign token email and user email same or not
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
       const query = {
         hrEmail: asset?.hrEmail,
         productName: asset?.productName,
@@ -83,15 +132,26 @@ async function run() {
     });
 
     // Assets Get
-    app.get("/assetsList/:email", async (req, res) => {
-      const hrEmail = req.params.email;
-      const query = { hrEmail: hrEmail };
-      const result = await assetsCollection.find(query).toArray();
-      res.send(result);
-    });
+    app.get(
+      "/assetsList/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const hrEmail = req.params.email;
+
+        // checkign token email and user email same or not
+        if (hrEmail !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+
+        const query = { hrEmail: hrEmail };
+        const result = await assetsCollection.find(query).toArray();
+        res.send(result);
+      }
+    );
 
     // employees not in team
-    app.get("/usersNotInTeam", async (req, res) => {
+    app.get("/usersNotInTeam", verifyToken, async (req, res) => {
       // Fetch all users
       const allUsers = await userCollection.find().toArray();
 
@@ -116,7 +176,7 @@ async function run() {
     });
 
     // employee add in team
-    app.post("/addToTeam", async (req, res) => {
+    app.post("/addToTeam", verifyToken, async (req, res) => {
       const { employee_id, hrEmail, employeeName, employeePhoto } = req.body;
 
       const query = { email: hrEmail };
@@ -144,11 +204,17 @@ async function run() {
         return res.status(400).send({ message: "limit reached" });
       }
 
-      if (packageValue === "advance" && existingHRTeam?.employees.length === 10) {
+      if (
+        packageValue === "advance" &&
+        existingHRTeam?.employees.length === 10
+      ) {
         return res.send({ message: "limit reached" });
       }
 
-      if (packageValue === "ultimate" && existingHRTeam?.employees.length === 20) {
+      if (
+        packageValue === "ultimate" &&
+        existingHRTeam?.employees.length === 20
+      ) {
         return res.send({ message: "limit reached" });
       }
 
@@ -176,7 +242,7 @@ async function run() {
     });
 
     // get my team's employees
-    app.get("/myTeam/:email", async (req, res) => {
+    app.get("/myTeam/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { hrEmail: email };
       const result = await teamCollection.find(query).toArray();
@@ -184,7 +250,7 @@ async function run() {
     });
 
     // Delete an employee from team
-    app.delete("/myTeam/:email", async (req, res) => {
+    app.delete("/myTeam/:email", verifyToken, async (req, res) => {
       const { deleteUserId } = req.body;
       const query = { "employees.employee_id": deleteUserId };
       const update = { $pull: { employees: { employee_id: deleteUserId } } };
@@ -194,7 +260,7 @@ async function run() {
     });
 
     // Delete an Asset
-    app.delete("/assetsList/:email", async (req, res) => {
+    app.delete("/assetsList/:email", verifyToken, async (req, res) => {
       const { id } = req.body;
       const query = { _id: new ObjectId(id) };
       const result = await assetsCollection.deleteOne(query);
