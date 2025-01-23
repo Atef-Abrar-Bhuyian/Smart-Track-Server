@@ -3,6 +3,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -69,27 +70,22 @@ async function run() {
     // hr
 
     // Admin Check
-    app.get(
-      "/users/admin/:email",
-      verifyToken,
-      verifyAdmin,
-      async (req, res) => {
-        const email = req.params.email;
-
-        // checkign token email and user email same or not
-        if (email !== req.decoded.email) {
-          return res.status(403).send({ message: "Forbidden Access" });
-        }
-
-        const query = { email: email };
-        const user = await userCollection.findOne(query);
-        let admin = false;
-        if (user) {
-          admin = user.role === "HR";
-        }
-        res.send({ admin });
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+    
+      // Ensure token email matches the request email
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
       }
-    );
+    
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role === "HR";
+    
+      // Respond with admin status, do not treat non-admin as unauthorized
+      res.send({ admin: isAdmin });
+    });
+    
 
     // Users Get
     app.get("/users", async (req, res) => {
@@ -265,6 +261,26 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await assetsCollection.deleteOne(query);
       res.send(result);
+    });
+
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+    
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+    
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error("Error creating PaymentIntent:", error);
+        res.status(500).send({ error: "Failed to create PaymentIntent" });
+      }
     });
 
     // Send a ping to confirm a successful connection
