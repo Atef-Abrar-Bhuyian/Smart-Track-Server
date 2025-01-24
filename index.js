@@ -72,20 +72,19 @@ async function run() {
     // Admin Check
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-    
+
       // Ensure token email matches the request email
       if (email !== req.decoded.email) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
-    
+
       const query = { email: email };
       const user = await userCollection.findOne(query);
       const isAdmin = user?.role === "HR";
-    
+
       // Respond with admin status, do not treat non-admin as unauthorized
       res.send({ admin: isAdmin });
     });
-    
 
     // Users Get
     app.get("/users", async (req, res) => {
@@ -172,8 +171,13 @@ async function run() {
     });
 
     // employee add in team
-    app.post("/addToTeam", verifyToken, async (req, res) => {
+    app.post("/addToTeam", verifyToken, verifyAdmin, async (req, res) => {
       const { employee_id, hrEmail, employeeName, employeePhoto } = req.body;
+
+      // checkign token email and user email same or not
+      if (hrEmail !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
 
       const query = { email: hrEmail };
       const hrInfo = userCollection.find(query);
@@ -238,15 +242,28 @@ async function run() {
     });
 
     // get my team's employees
-    app.get("/myTeam/:email", verifyToken, async (req, res) => {
+    app.get("/myTeam/:email", verifyToken, verifyAdmin, async (req, res) => {
       const email = req.params.email;
+
+      // checkign token email and user email same or not
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
       const query = { hrEmail: email };
       const result = await teamCollection.find(query).toArray();
       res.send(result);
     });
 
     // Delete an employee from team
-    app.delete("/myTeam/:email", verifyToken, async (req, res) => {
+    app.delete("/myTeam/:email", verifyToken, verifyAdmin, async (req, res) => {
+      const userEmail = req.params.email;
+
+      // checkign token email and user email same or not
+      if (userEmail !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
       const { deleteUserId } = req.body;
       const query = { "employees.employee_id": deleteUserId };
       const update = { $pull: { employees: { employee_id: deleteUserId } } };
@@ -256,24 +273,37 @@ async function run() {
     });
 
     // Delete an Asset
-    app.delete("/assetsList/:email", verifyToken, async (req, res) => {
-      const { id } = req.body;
-      const query = { _id: new ObjectId(id) };
-      const result = await assetsCollection.deleteOne(query);
-      res.send(result);
-    });
+    app.delete(
+      "/assetsList/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const userEmail = req.params.email;
 
+        // checkign token email and user email same or not
+        if (userEmail !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+
+        const { id } = req.body;
+        const query = { _id: new ObjectId(id) };
+        const result = await assetsCollection.deleteOne(query);
+        res.send(result);
+      }
+    );
+
+    // payment related api
     app.post("/create-payment-intent", async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
-    
+
       try {
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amount,
           currency: "usd",
           payment_method_types: ["card"],
         });
-    
+
         res.send({
           clientSecret: paymentIntent.client_secret,
         });
@@ -281,6 +311,40 @@ async function run() {
         console.error("Error creating PaymentIntent:", error);
         res.status(500).send({ error: "Failed to create PaymentIntent" });
       }
+    });
+
+    // employee team with hr info
+    app.get("/emplyeeTeam/:email", verifyToken, async (req, res) => {
+      const employeeEmail = req.params.email;
+
+      const employee = await userCollection.findOne({ email: employeeEmail });
+
+      if (!employee) {
+        // If the employee does not exist, return an error
+        return res
+          .status(404)
+          .send({ success: false, message: "Employee not found" });
+      }
+
+      const team = await teamCollection.findOne({
+        "employees.employee_id": employee._id.toString(),
+      });
+
+      if (!team) {
+        // If no team is found for this employee, return an error
+        return res.status(404).send({
+          success: false,
+          message: "no-team-found",
+        });
+      }
+
+      const hrUser = await userCollection.findOne({ email: team?.hrEmail });
+
+      res.send({
+        success: true,
+        team,
+        hrUser,
+      });
     });
 
     // Send a ping to confirm a successful connection
