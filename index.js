@@ -319,13 +319,6 @@ async function run() {
 
       const employee = await userCollection.findOne({ email: employeeEmail });
 
-      if (!employee) {
-        // If the employee does not exist, return an error
-        return res
-          .status(404)
-          .send({ success: false, message: "Employee not found" });
-      }
-
       const team = await teamCollection.findOne({
         "employees.employee_id": employee._id.toString(),
       });
@@ -345,6 +338,29 @@ async function run() {
         team,
         hrUser,
       });
+    });
+
+    app.get("/requestAssets/:email", verifyToken, async (req, res) => {
+      const employeeEmail = req.params.email;
+      const employee = await userCollection.findOne({ email: employeeEmail });
+
+      const team = await teamCollection.findOne({
+        "employees.employee_id": employee._id.toString(),
+      });
+
+      if (!team) {
+        return res
+          .status(404)
+          .send({ success: false, message: "no-team-found" });
+      }
+
+      const hrUser = await userCollection.findOne({ email: team?.hrEmail });
+
+      const hrAssets = await assetsCollection
+        .find({ hrEmail: hrUser?.email })
+        .toArray();
+
+      res.send(hrAssets);
     });
 
     // Send a ping to confirm a successful connection
