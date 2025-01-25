@@ -67,7 +67,7 @@ async function run() {
     };
 
     // users related api
-    // hr
+    // hr related api's
 
     // Admin Check
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
@@ -313,6 +313,7 @@ async function run() {
       }
     });
 
+    // employee realed api's
     // employee team with hr info
     app.get("/emplyeeTeam/:email", verifyToken, async (req, res) => {
       const employeeEmail = req.params.email;
@@ -387,6 +388,15 @@ async function run() {
       const result = await assetsCollection.updateOne(query, update);
       res.status(200).send(result);
     });
+
+    // employee requsted assets
+    app.get("/employeesAssets/:email", verifyToken, async(req,res)=>{
+      const employeeEmail = req.params.email;
+      const query = { "requests.userEmail": employeeEmail };
+
+      const result = await assetsCollection.find(query).toArray();
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
