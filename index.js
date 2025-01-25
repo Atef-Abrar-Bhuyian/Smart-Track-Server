@@ -340,7 +340,8 @@ async function run() {
       });
     });
 
-    app.get("/requestAssets/:email", verifyToken, async (req, res) => {
+    // assets for teammembers
+    app.get("/hrAssets/:email", verifyToken, async (req, res) => {
       const employeeEmail = req.params.email;
       const employee = await userCollection.findOne({ email: employeeEmail });
 
@@ -361,6 +362,30 @@ async function run() {
         .toArray();
 
       res.send(hrAssets);
+    });
+
+    // req an assets
+    app.post("/requestAnAsset", verifyToken, async (req, res) => {
+      const requestInfo = req.body;
+      const query = { _id: new ObjectId(requestInfo.assetsId) };
+      const asset = await assetsCollection.findOne(query);
+
+      const userRequest = {
+        userEmail: requestInfo?.userEmail,
+        userName: requestInfo?.userName,
+        status: requestInfo?.status,
+        requestedDate: new Date(),
+        message: requestInfo?.message,
+      };
+
+      const update = {
+        $push: {
+          requests: userRequest,
+        },
+      };
+
+      const result = await assetsCollection.updateOne(query, update);
+      res.status(200).send(result);
     });
 
     // Send a ping to confirm a successful connection
