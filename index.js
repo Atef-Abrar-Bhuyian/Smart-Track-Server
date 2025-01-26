@@ -198,11 +198,14 @@ async function run() {
         const update = {
           $set: {
             "requests.$.status": "Approved",
+            "requests.$.approvaldDate": new Date(),
+          },
+          $inc: {
+            quantity: -1,
           },
         };
 
         const result = await assetsCollection.updateOne(query, update);
-        console.log(result);
 
         res.send(result);
       }
@@ -235,7 +238,6 @@ async function run() {
         };
 
         const result = await assetsCollection.updateOne(query, update);
-        console.log(result);
 
         res.send(result);
       }
@@ -404,7 +406,6 @@ async function run() {
           clientSecret: paymentIntent.client_secret,
         });
       } catch (error) {
-        console.error("Error creating PaymentIntent:", error);
         res.status(500).send({ error: "Failed to create PaymentIntent" });
       }
     });
@@ -520,6 +521,28 @@ async function run() {
 
       const result = await assetsCollection.updateOne(query, update);
       res.status(200).send(result);
+    });
+
+    // return asset
+    app.patch("/returnAsset", verifyToken, async (req, res) => {
+      const { assetId, requestId } = req.body;
+
+      const query = {
+        _id: new ObjectId(assetId),
+        "requests._id": new ObjectId(requestId),
+      };
+      const update = {
+        $set: {
+          "requests.$.status": "Returned",
+        },
+        $inc: {
+          quantity: 1,
+        },
+      };
+
+      const result = await assetsCollection.updateOne(query, update);
+
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
