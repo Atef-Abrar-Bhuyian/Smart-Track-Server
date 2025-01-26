@@ -372,6 +372,7 @@ async function run() {
       const asset = await assetsCollection.findOne(query);
 
       const userRequest = {
+        _id: new ObjectId(),
         userEmail: requestInfo?.userEmail,
         userName: requestInfo?.userName,
         status: requestInfo?.status,
@@ -390,13 +391,40 @@ async function run() {
     });
 
     // employee requsted assets
-    app.get("/employeesAssets/:email", verifyToken, async(req,res)=>{
+    app.get("/employeesAssets/:email", verifyToken, async (req, res) => {
       const employeeEmail = req.params.email;
       const query = { "requests.userEmail": employeeEmail };
+      const assets = await assetsCollection.find(query).toArray();
 
-      const result = await assetsCollection.find(query).toArray();
-      res.send(result)
-    })
+      const hrEmails = assets.map((asset) => asset.hrEmail);
+
+      const hrDetails = await userCollection
+        .find({ email: { $in: hrEmails } })
+        .project({ email: 1, companyName: 1 })
+        .toArray();
+
+      const result = assets.map((asset) => {
+        const hr = hrDetails.find((hr) => hr.email === asset?.hrEmail);
+        return { ...asset, companyName: hr?.companyName };
+      });
+
+      res.send(result);
+    });
+
+    // Employee cancel an asset
+    app.delete("/deleteRequest", verifyToken, async (req, res) => {
+      const { requestId, assetId } = req.body;
+    
+      const query = { _id: new ObjectId(assetId) };
+      const update = {
+        $pull: {
+          requests: { _id: new ObjectId(requestId) }, // Match the specific request _id
+        },
+      };
+    
+      const result = await assetsCollection.updateOne(query, update);
+      res.status(200).send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
