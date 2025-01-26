@@ -172,6 +172,32 @@ async function run() {
       }
     );
 
+    // Asset Request Reject
+    app.patch(
+      "/assetRequestReject",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { assetId, requestId } = req.body;
+
+        const query = {
+          _id: new ObjectId(assetId),
+          "requests._id": new ObjectId(requestId),
+        };
+
+        const update = {
+          $set: {
+            "requests.$.status": "Rejected",
+          },
+        };
+
+        const result = await assetsCollection.updateOne(query, update);
+        console.log(result);
+
+        res.send(result);
+      }
+    );
+
     // employees not in team
     app.get("/usersNotInTeam", verifyToken, async (req, res) => {
       // Fetch all users
