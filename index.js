@@ -159,6 +159,22 @@ async function run() {
       }
     );
 
+    app.patch("/assetsList/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const assetId = req.params.id;
+      const { hrEmail, quantity } = req.body;
+
+      if (hrEmail !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      const query = { _id: new ObjectId(assetId), hrEmail: hrEmail };
+      const update = { $set: { quantity: parseInt(quantity) } };
+
+      const result = await assetsCollection.updateOne(query, update);
+
+      res.send(result);
+    });
+
     // Asset Request Approved
     app.patch(
       "/assetRequestAccept/:email",
