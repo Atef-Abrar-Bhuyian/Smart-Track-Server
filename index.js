@@ -67,6 +67,7 @@ async function run() {
     };
 
     // users related api
+
     // hr related api's
 
     // Admin Check
@@ -141,6 +142,32 @@ async function run() {
 
         const query = { hrEmail: hrEmail };
         const result = await assetsCollection.find(query).toArray();
+        res.send(result);
+      }
+    );
+
+    // Asset Request Approved 
+    app.patch(
+      "/assetRequestAccept",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { assetId, requestId } = req.body;
+
+        const query = {
+          _id: new ObjectId(assetId),
+          "requests._id": new ObjectId(requestId),
+        };
+
+        const update = {
+          $set: {
+            "requests.$.status": "Approved",
+          },
+        };
+
+        const result = await assetsCollection.updateOne(query, update);
+        console.log(result);
+
         res.send(result);
       }
     );
@@ -414,17 +441,19 @@ async function run() {
     // Employee cancel an asset
     app.delete("/deleteRequest", verifyToken, async (req, res) => {
       const { requestId, assetId } = req.body;
-    
+
       const query = { _id: new ObjectId(assetId) };
       const update = {
         $pull: {
-          requests: { _id: new ObjectId(requestId) }, // Match the specific request _id
+          requests: { _id: new ObjectId(requestId) },
         },
       };
-    
+
       const result = await assetsCollection.updateOne(query, update);
       res.status(200).send(result);
     });
+
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
