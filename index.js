@@ -83,8 +83,21 @@ async function run() {
       const user = await userCollection.findOne(query);
       const isAdmin = user?.role === "HR";
 
-      // Respond with admin status, do not treat non-admin as unauthorized
       res.send({ admin: isAdmin });
+    });
+
+    // Admin user Info
+    app.get("/adminInfo/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+
+      // Ensure token email matches the request email
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      res.send(user);
     });
 
     // Users Get
@@ -146,12 +159,19 @@ async function run() {
       }
     );
 
-    // Asset Request Approved 
+    // Asset Request Approved
     app.patch(
-      "/assetRequestAccept",
+      "/assetRequestAccept/:email",
       verifyToken,
       verifyAdmin,
       async (req, res) => {
+        const email = req.params.email;
+
+        // checkign token email and user email same or not
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+
         const { assetId, requestId } = req.body;
 
         const query = {
@@ -174,10 +194,17 @@ async function run() {
 
     // Asset Request Reject
     app.patch(
-      "/assetRequestReject",
+      "/assetRequestReject/:email",
       verifyToken,
       verifyAdmin,
       async (req, res) => {
+        const email = req.params.email;
+
+        // checkign token email and user email same or not
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+
         const { assetId, requestId } = req.body;
 
         const query = {
@@ -478,8 +505,6 @@ async function run() {
       const result = await assetsCollection.updateOne(query, update);
       res.status(200).send(result);
     });
-
-    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
