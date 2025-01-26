@@ -545,6 +545,19 @@ async function run() {
       res.send(result);
     });
 
+    // limit Increase and user selected plane update
+    app.patch("/users/:email", async (req, res) => {
+      const { email } = req.params;
+      const { selectedPackage } = req.body;
+
+      const result = await userCollection.updateOne(
+        { email: email },
+        { $set: { selectedPackage: selectedPackage } }
+      );
+
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
