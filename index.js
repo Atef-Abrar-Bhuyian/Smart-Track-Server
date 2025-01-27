@@ -250,6 +250,30 @@ async function run() {
       }
     );
 
+    // limited Stock Items
+    app.get(
+      "/limitedStockItems/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const hrEmail = req.params.email;
+        try {
+          const limitedStockItems = await assetsCollection
+            .find({
+              hrEmail: hrEmail, 
+              quantity: { $lt: 10 }, 
+            })
+            .toArray();
+    
+          res.send(limitedStockItems);
+        } catch (error) {
+          console.error("Error fetching limited stock items:", error);
+          res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
+    
+
     // Pending Request of an Employee
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
