@@ -143,6 +143,7 @@ async function run() {
       }
     });
 
+    // Pending Request of an Employee 
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
 
@@ -151,17 +152,49 @@ async function run() {
         "employees.employee_id": user?._id.toString(),
       });
 
+      const pendingRequests = await assetsCollection
+        .find({
+          hrEmail: teamsInfo?.hrEmail,
+          requests: {
+            $elemMatch: {
+              userEmail: userEmail,
+              status: "Pending",
+            },
+          },
+        })
+        .toArray();
+
+      res.send(pendingRequests);
+    });
+
+    // All request of employee of this month
+    app.get("/allRequestsOfOneMonth/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+      const user = await userCollection.findOne({ email: userEmail });
+      const teamsInfo = await teamCollection.findOne({
+        "employees.employee_id": user?._id.toString(),
+      });
+
+      // Get the start and end of the current month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const endOfMonth = new Date(startOfMonth);
+      endOfMonth.setMonth(startOfMonth.getMonth() + 1);
+      endOfMonth.setDate(0);
+      endOfMonth.setHours(23, 59, 59, 999);
+
       const pendingRequests = await assetsCollection.find({
         hrEmail: teamsInfo?.hrEmail,
-        requests: {
-          $elemMatch: {
-            userEmail: userEmail,
-            status: "Pending",
-          },
+        "requests.userEmail": userEmail,
+        "requests.requestedDate": {
+          $gte: startOfMonth, // Greater than or equal to the start of the month
+          $lt: endOfMonth, // Less than the end of the month
         },
       }).toArray();
 
-      res.send(pendingRequests);
+      res.send(pendingRequests)
     });
 
     // Assets Post
