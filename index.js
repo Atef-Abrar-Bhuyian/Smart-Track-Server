@@ -125,19 +125,43 @@ async function run() {
       if (user.role === "HR") {
         return res.send(user);
       } else {
-        // If the user is not an HR, find their team information
-        const team = await teamCollection.findOne({ members: email });
+        // Convert user._id to a string
+        const userIdStr = user?._id.toString();
+
+        // Find the team where the user's ID matches an employee_id
+        const team = await teamCollection.findOne({
+          "employees.employee_id": userIdStr,
+        });
 
         if (team) {
-          // Attach team information to the user object
           user.team = "in-a-team";
         } else {
-          // If the user is not in any team
           user.team = "not-in-team";
         }
 
         return res.send(user);
       }
+    });
+
+    app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
+      const userEmail = req.params.email;
+
+      const user = await userCollection.findOne({ email: userEmail });
+      const teamsInfo = await teamCollection.findOne({
+        "employees.employee_id": user?._id.toString(),
+      });
+
+      const pendingRequests = await assetsCollection.find({
+        hrEmail: teamsInfo?.hrEmail,
+        requests: {
+          $elemMatch: {
+            userEmail: userEmail,
+            status: "Pending",
+          },
+        },
+      }).toArray();
+
+      res.send(pendingRequests);
     });
 
     // Assets Post
