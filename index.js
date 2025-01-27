@@ -118,6 +118,7 @@ async function run() {
       res.send(result);
     });
 
+    // User info with in a team or not
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
       const user = await userCollection.findOne({ email: email });
@@ -143,7 +144,66 @@ async function run() {
       }
     });
 
-    // Pending Request of an Employee 
+    // pending 5 request for hr home page
+    app.get(
+      "/pendingRequestsForHr/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const hrEmail = req.params.email;
+    
+        try {
+          // Ensure token email matches the request email
+          if (hrEmail !== req.decoded.email) {
+            return res.status(403).send({ message: "Forbidden Access" });
+          }
+    
+          // Use aggregation to fetch exactly 5 pending requests across all assets
+          const pendingRequests = await assetsCollection
+            .aggregate([
+              {
+                $match: {
+                  hrEmail: hrEmail,
+                },
+              },
+              {
+                $unwind: "$requests", 
+              },
+              {
+                $match: {
+                  "requests.status": "Pending", 
+                },
+              },
+              {
+                $limit: 5, 
+              },
+              {
+                $project: {
+                  productName: 1,
+                  quantity: 1,
+                  productType: 1,
+                  assetAddedDate: 1,
+                  hrEmail: 1,
+                  "requests.userEmail": 1,
+                  "requests.userName": 1,
+                  "requests.requestedDate": 1, 
+                  "requests.status": 1, 
+                },
+              },
+            ])
+            .toArray();
+    
+          res.send(pendingRequests);
+        } catch (error) {
+          console.error("Error fetching pending requests for HR:", error);
+          res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
+    
+
+
+    // Pending Request of an Employee
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
 
@@ -166,7 +226,7 @@ async function run() {
 
       res.send(pendingRequests);
     });
-
+    
     // All request of employee of this month
     app.get("/allRequestsOfOneMonth/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
@@ -185,16 +245,18 @@ async function run() {
       endOfMonth.setDate(0);
       endOfMonth.setHours(23, 59, 59, 999);
 
-      const pendingRequests = await assetsCollection.find({
-        hrEmail: teamsInfo?.hrEmail,
-        "requests.userEmail": userEmail,
-        "requests.requestedDate": {
-          $gte: startOfMonth, // Greater than or equal to the start of the month
-          $lt: endOfMonth, // Less than the end of the month
-        },
-      }).toArray();
+      const pendingRequests = await assetsCollection
+        .find({
+          hrEmail: teamsInfo?.hrEmail,
+          "requests.userEmail": userEmail,
+          "requests.requestedDate": {
+            $gte: startOfMonth, // Greater than or equal to the start of the month
+            $lt: endOfMonth, // Less than the end of the month
+          },
+        })
+        .toArray();
 
-      res.send(pendingRequests)
+      res.send(pendingRequests);
     });
 
     // Assets Post
