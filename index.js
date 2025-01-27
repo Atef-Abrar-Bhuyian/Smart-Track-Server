@@ -118,6 +118,17 @@ async function run() {
       res.send(result);
     });
 
+app.get("/users/:email", async (req, res) => {
+  const email = req.params.email;
+  const user = await userCollection.findOne({ email: email });
+  
+  if (user) {
+    res.send(user);
+  } else {
+    res.status(404).send({ message: "User not found" });
+  }
+});
+
     // Assets Post
     app.post("/assets", verifyToken, verifyAdmin, async (req, res) => {
       const asset = req.body;
@@ -546,7 +557,7 @@ async function run() {
     });
 
     // limit Increase and user selected plane update
-    app.patch("/users/:email", async (req, res) => {
+    app.patch("/increaseLimit/:email", async (req, res) => {
       const { email } = req.params;
       const { selectedPackage } = req.body;
 
