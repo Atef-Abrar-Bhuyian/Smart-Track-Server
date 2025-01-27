@@ -118,16 +118,27 @@ async function run() {
       res.send(result);
     });
 
-app.get("/users/:email", async (req, res) => {
-  const email = req.params.email;
-  const user = await userCollection.findOne({ email: email });
-  
-  if (user) {
-    res.send(user);
-  } else {
-    res.status(404).send({ message: "User not found" });
-  }
-});
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email: email });
+
+      if (user.role === "HR") {
+        return res.send(user);
+      } else {
+        // If the user is not an HR, find their team information
+        const team = await teamCollection.findOne({ members: email });
+
+        if (team) {
+          // Attach team information to the user object
+          user.team = "in-a-team";
+        } else {
+          // If the user is not in any team
+          user.team = "not-in-team";
+        }
+
+        return res.send(user);
+      }
+    });
 
     // Assets Post
     app.post("/assets", verifyToken, verifyAdmin, async (req, res) => {
@@ -296,47 +307,16 @@ app.get("/users/:email", async (req, res) => {
 
       const packageValue = hrPackage[0];
 
-      // Check if the employee is already in any team
-      const existingTeam = await teamCollection.findOne({
-        "employees.employee_id": employee_id,
-      });
-
-      if (existingTeam) {
-        return res
-          .status(400)
-          .send({ message: "Employee is already in a team" });
-      }
       // Check if the HR already exists in the database
       const existingHRTeam = await teamCollection.findOne({ hrEmail });
 
-      if (packageValue === "basic" && existingHRTeam?.employees.length === 5) {
+      if (
+        (packageValue === "basic" && existingHRTeam?.employees.length >= 5) ||
+        (packageValue === "advance" &&
+          existingHRTeam?.employees.length >= 10) ||
+        (packageValue === "ultimate" && existingHRTeam?.employees.length >= 20)
+      ) {
         return res.status(400).send({ message: "limit reached" });
-      }
-
-      if (
-        packageValue === "advance" &&
-        existingHRTeam?.employees.length === 10
-      ) {
-        return res.send({ message: "limit reached" });
-      }
-
-      if (
-        packageValue === "ultimate" &&
-        existingHRTeam?.employees.length === 20
-      ) {
-        return res.send({ message: "limit reached" });
-      }
-
-      if (existingHRTeam) {
-        // HR exists, directly add the employee to the 'employees' array
-        await teamCollection.updateOne(
-          { hrEmail },
-          { $push: { employees: { employee_id, employeeName, employeePhoto } } }
-        );
-
-        return res
-          .status(200)
-          .send({ message: "Successfully Added", insertedId: true });
       }
 
       // If HR team does not exist, create a new team and add the employee
@@ -349,6 +329,62 @@ app.get("/users/:email", async (req, res) => {
         .status(200)
         .send({ message: "Successfully Added", insertedId: result.insertedId });
     });
+
+    // Multiple employee add to team
+    app.post(
+      "/addMultipleEmployeeTeam",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { employees, hrEmail } = req.body;
+
+        if (hrEmail !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden Access" });
+        }
+
+        const query = { email: hrEmail };
+        const hrInfo = await userCollection.find(query).toArray();
+        const packageValue = hrInfo[0]?.selectedPackage;
+
+        const existingHRTeam = await teamCollection.findOne({ hrEmail });
+
+        if (
+          (packageValue === "basic" && existingHRTeam?.employees.length >= 5) ||
+          (packageValue === "advance" &&
+            existingHRTeam?.employees.length >= 10) ||
+          (packageValue === "ultimate" &&
+            existingHRTeam?.employees.length >= 20)
+        ) {
+          return res.status(400).send({ message: "limit reached" });
+        }
+
+        const existingTeam = await teamCollection.findOne({
+          "employees.employee_id": {
+            $in: employees.map((emp) => emp.employee_id),
+          },
+        });
+
+        if (existingTeam) {
+          return res
+            .status(400)
+            .send({ message: "Some employees are already in a team" });
+        }
+
+        if (existingHRTeam) {
+          await teamCollection.updateOne(
+            { hrEmail },
+            { $push: { employees: { $each: employees } } }
+          );
+        } else {
+          await teamCollection.insertOne({ hrEmail, employees });
+        }
+
+        // Return success response
+        res
+          .status(200)
+          .send({ message: "Successfully Added", insertedIds: true });
+      }
+    );
 
     // get my team's employees
     app.get("/myTeam/:email", verifyToken, verifyAdmin, async (req, res) => {
