@@ -151,13 +151,13 @@ async function run() {
       verifyAdmin,
       async (req, res) => {
         const hrEmail = req.params.email;
-    
+
         try {
           // Ensure token email matches the request email
           if (hrEmail !== req.decoded.email) {
             return res.status(403).send({ message: "Forbidden Access" });
           }
-    
+
           // Use aggregation to fetch exactly 5 pending requests across all assets
           const pendingRequests = await assetsCollection
             .aggregate([
@@ -167,15 +167,15 @@ async function run() {
                 },
               },
               {
-                $unwind: "$requests", 
+                $unwind: "$requests",
               },
               {
                 $match: {
-                  "requests.status": "Pending", 
+                  "requests.status": "Pending",
                 },
               },
               {
-                $limit: 5, 
+                $limit: 5,
               },
               {
                 $project: {
@@ -186,13 +186,13 @@ async function run() {
                   hrEmail: 1,
                   "requests.userEmail": 1,
                   "requests.userName": 1,
-                  "requests.requestedDate": 1, 
-                  "requests.status": 1, 
+                  "requests.requestedDate": 1,
+                  "requests.status": 1,
                 },
               },
             ])
             .toArray();
-    
+
           res.send(pendingRequests);
         } catch (error) {
           console.error("Error fetching pending requests for HR:", error);
@@ -200,8 +200,55 @@ async function run() {
         }
       }
     );
-    
 
+    // top most Requested items
+    app.get(
+      "/topRequestedItems/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const hrEmail = req.params.email;
+
+          // Ensure token email matches the request email
+          if (hrEmail !== req.decoded.email) {
+            return res.status(403).send({ message: "Forbidden Access" });
+          }
+
+          const topRequestedItems = await assetsCollection
+            .aggregate([
+              {
+                $match: {
+                  hrEmail: hrEmail, 
+                },
+              },
+              {
+                $unwind: "$requests", 
+              },
+              {
+                $group: {
+                  _id: "$productName", 
+                  totalRequests: { $sum: 1 }, 
+                },
+              },
+              {
+                $sort: {
+                  totalRequests: -1, 
+                },
+              },
+              {
+                $limit: 4,
+              },
+            ])
+            .toArray();
+
+          res.send(topRequestedItems);
+        } catch (error) {
+          console.error("Error fetching top requested items:", error);
+          res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
 
     // Pending Request of an Employee
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
@@ -226,7 +273,7 @@ async function run() {
 
       res.send(pendingRequests);
     });
-    
+
     // All request of employee of this month
     app.get("/allRequestsOfOneMonth/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
