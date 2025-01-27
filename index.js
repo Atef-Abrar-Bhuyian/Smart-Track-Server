@@ -219,21 +219,21 @@ async function run() {
             .aggregate([
               {
                 $match: {
-                  hrEmail: hrEmail, 
+                  hrEmail: hrEmail,
                 },
               },
               {
-                $unwind: "$requests", 
+                $unwind: "$requests",
               },
               {
                 $group: {
-                  _id: "$productName", 
-                  totalRequests: { $sum: 1 }, 
+                  _id: "$productName",
+                  totalRequests: { $sum: 1 },
                 },
               },
               {
                 $sort: {
-                  totalRequests: -1, 
+                  totalRequests: -1,
                 },
               },
               {
@@ -260,11 +260,11 @@ async function run() {
         try {
           const limitedStockItems = await assetsCollection
             .find({
-              hrEmail: hrEmail, 
-              quantity: { $lt: 10 }, 
+              hrEmail: hrEmail,
+              quantity: { $lt: 10 },
             })
             .toArray();
-    
+
           res.send(limitedStockItems);
         } catch (error) {
           console.error("Error fetching limited stock items:", error);
@@ -272,7 +272,63 @@ async function run() {
         }
       }
     );
-    
+
+    app.get(
+      "/itemRequestStats/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const hrEmail = req.params.email;
+
+          // Ensure token email matches the request email
+          if (hrEmail !== req.decoded.email) {
+            return res.status(403).send({ message: "Forbidden Access" });
+          }
+
+          const itemRequestStats = await assetsCollection
+            .aggregate([
+              {
+                $match: {
+                  hrEmail: hrEmail,
+                },
+              },
+              {
+                $unwind: "$requests",
+              },
+              {
+                $group: {
+                  _id: "$productType",
+                  totalRequests: { $sum: 1 },
+                },
+              },
+              {
+                $project: {
+                  _id: 0, 
+                  productType: "$_id",
+                  totalRequests: 1,
+                },
+              },
+            ])
+            .toArray();
+
+          const totalRequests = itemRequestStats.reduce(
+            (acc, item) => acc + item.totalRequests,
+            0
+          );
+
+          const pieChartData = itemRequestStats.map((item) => ({
+            productType: item.productType,
+            percentage: parseInt(((item.totalRequests / totalRequests) * 100).toFixed(2)),
+          }));
+
+          res.send(pieChartData);
+        } catch (error) {
+          console.error("Error fetching item request stats:", error);
+          res.status(500).send({ message: "Internal Server Error" });
+        }
+      }
+    );
 
     // Pending Request of an Employee
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
