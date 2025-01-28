@@ -542,6 +542,7 @@ async function run() {
       res.status(200).send(assets);
     });
 
+    // hr Asset list modify
     app.patch("/assetsList/:id", verifyToken, verifyAdmin, async (req, res) => {
       const assetId = req.params.id;
       const { hrEmail, quantity } = req.body;
@@ -557,6 +558,31 @@ async function run() {
 
       res.send(result);
     });
+
+
+    // hr asset requester search
+    app.get("/searchRequester/:email", verifyToken, async (req, res) => {
+      const hrEmail = req.params.email;
+      const { searchTerm } = req.query; 
+    
+      try {
+        
+        const query = {
+          $or: [
+            { "requests.userName": { $regex: searchTerm, $options: "i" } }, 
+            { "requests.userEmail": { $regex: searchTerm, $options: "i" } }, 
+          ],
+        };
+    
+        const assets = await assetsCollection.find(query).toArray();
+    
+        res.status(200).send(assets);
+      } catch (err) {
+        console.error("Error searching assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
+    
 
     // Asset Request Approved
     app.patch(
