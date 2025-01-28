@@ -448,6 +448,7 @@ async function run() {
       }
     );
 
+    // Hr asset list page search functionality
     app.get("/searchAssetHr/:email", verifyToken, async (req, res) => {
       const hrEmail = req.params.email;
       const { productName } = req.query;
@@ -474,6 +475,53 @@ async function run() {
         res.status(200).send(result);
       } catch (err) {
         // console.error("Error searching for assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
+
+    // filter hr asset list page
+    app.get("/requestAssetsFilter/:email", verifyToken, async (req, res) => {
+      const hrEmail = req.params.email;
+      const { filterType } = req.query;
+
+      try {
+        let query = { hrEmail: hrEmail };
+
+        if (filterType) {
+          if (filterType === "available") {
+            query["quantity"] = { $gt: 0 };
+          } else if (filterType === "outOfStock") {
+            query["quantity"] = { $eq: 0 };
+          } else if (filterType === "Returnable") {
+            query["productType"] = "Returnable";
+          } else if (filterType === "Non-Returnable") {
+            query["productType"] = "Non-Returnable";
+          } else {
+            return res.status(400).send({ message: "Invalid filter type." });
+          }
+        }
+
+        const assets = await assetsCollection.find(query).toArray();
+
+        if (assets.length === 0) {
+          return res.status(200).send([]);
+        }
+
+        const hrEmails = assets.map((asset) => asset.hrEmail);
+
+        const hrDetails = await userCollection
+          .find({ email: { $in: hrEmails } })
+          .project({ email: 1, companyName: 1 })
+          .toArray();
+
+        const result = assets.map((asset) => {
+          const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
+          return { ...asset, companyName: hr?.companyName };
+        });
+
+        res.status(200).send(result);
+      } catch (err) {
+        // console.error("Error filtering assets:", err);
         res.status(500).send({ message: "Internal server error." });
       }
     });
