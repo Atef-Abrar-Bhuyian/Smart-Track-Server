@@ -195,7 +195,7 @@ async function run() {
 
           res.send(pendingRequests);
         } catch (error) {
-          console.error("Error fetching pending requests for HR:", error);
+          // console.error("Error fetching pending requests for HR:", error);
           res.status(500).send({ message: "Internal Server Error" });
         }
       }
@@ -244,7 +244,7 @@ async function run() {
 
           res.send(topRequestedItems);
         } catch (error) {
-          console.error("Error fetching top requested items:", error);
+          // console.error("Error fetching top requested items:", error);
           res.status(500).send({ message: "Internal Server Error" });
         }
       }
@@ -267,7 +267,7 @@ async function run() {
 
           res.send(limitedStockItems);
         } catch (error) {
-          console.error("Error fetching limited stock items:", error);
+          // console.error("Error fetching limited stock items:", error);
           res.status(500).send({ message: "Internal Server Error" });
         }
       }
@@ -327,7 +327,7 @@ async function run() {
 
           res.send(pieChartData);
         } catch (error) {
-          console.error("Error fetching item request stats:", error);
+          // console.error("Error fetching item request stats:", error);
           res.status(500).send({ message: "Internal Server Error" });
         }
       }
@@ -447,6 +447,36 @@ async function run() {
         res.send(result);
       }
     );
+
+    app.get("/searchAssetHr/:email", verifyToken, async (req, res) => {
+      const hrEmail = req.params.email;
+      const { productName } = req.query;
+
+      try {
+        const query = {
+          productName: { $regex: productName, $options: "i" },
+          hrEmail: hrEmail,
+        };
+
+        const assets = await assetsCollection.find(query).toArray();
+
+        const hrDetails = await userCollection
+          .find({ email: hrEmail })
+          .project({ email: 1, companyName: 1 })
+          .toArray();
+
+        const result = assets.map((asset) => {
+          const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
+          return { ...asset, companyName: hr?.companyName };
+        });
+
+        // Send the result back to the client
+        res.status(200).send(result);
+      } catch (err) {
+        // console.error("Error searching for assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
 
     app.patch("/assetsList/:id", verifyToken, verifyAdmin, async (req, res) => {
       const assetId = req.params.id;
@@ -829,7 +859,7 @@ async function run() {
         // Send the result back to the client
         res.status(200).send(result);
       } catch (err) {
-        console.error("Error searching for assets:", err);
+        // console.error("Error searching for assets:", err);
         res.status(500).send({ message: "Internal server error." });
       }
     });
@@ -837,118 +867,92 @@ async function run() {
     // Filter Employee assets request
     app.get("/assetsRequestFilter/:email", verifyToken, async (req, res) => {
       const employeeEmail = req.params.email;
-      const { filterType } = req.query; // This will hold values like 'Pending', 'Approved', 'Returnable', or 'Non-Returnable'
-    
+      const { filterType } = req.query;
       try {
         let query = { "requests.userEmail": employeeEmail };
-    
-        // Log the initial query for debugging
-        console.log("Initial Query:", query);
-    
-        // Add filter conditions based on the filterType
+
         if (filterType) {
           if (filterType === "Pending") {
-            // Filter for assets that have at least one 'Pending' request
-            query["requests.status"] = "Pending"; // Look for status 'Pending' in any request
+            query["requests.status"] = "Pending";
           } else if (filterType === "Approved") {
-            // Filter for assets that have at least one 'Approved' request
-            query["requests.status"] = "Approved"; // Look for status 'Approved' in any request
+            query["requests.status"] = "Approved";
           } else if (filterType === "Returnable") {
-            query["productType"] = "Returnable";   // Filter only Returnable items
+            query["productType"] = "Returnable";
           } else if (filterType === "Non-Returnable") {
-            query["productType"] = "Non-Returnable";  // Filter only Non-Returnable items
+            query["productType"] = "Non-Returnable";
           } else {
             return res.status(400).send({ message: "Invalid filter type." });
           }
         }
-    
-        // Log the final query for debugging
-        console.log("Final Query:", query);
-    
-        // Fetch assets based on the query
+
         const assets = await assetsCollection.find(query).toArray();
-    
-        // If there are no assets, return an empty response
+
         if (assets.length === 0) {
           return res.status(200).send([]);
         }
-    
+
         const hrEmails = assets.map((asset) => asset.hrEmail);
-    
+
         const hrDetails = await userCollection
           .find({ email: { $in: hrEmails } })
           .project({ email: 1, companyName: 1 })
           .toArray();
-    
-        // Combine HR details with asset information
+
         const result = assets.map((asset) => {
           const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
           return { ...asset, companyName: hr?.companyName };
         });
-    
-        // Send the filtered result back to the client
+
         res.status(200).send(result);
       } catch (err) {
-        console.error("Error filtering assets:", err);
+        // console.error("Error filtering assets:", err);
         res.status(500).send({ message: "Internal server error." });
       }
     });
-    
+
+    // filter employee request page
     app.get("/requestAssetsFilter/:email", verifyToken, async (req, res) => {
       const employeeEmail = req.params.email;
       const { filterType } = req.query;
-    
+
       try {
         let query = { "requests.userEmail": employeeEmail };
-    
-      
-        console.log("Initial Query:", query);
-    
-       
+
         if (filterType) {
           if (filterType === "available") {
-            
             query["quantity"] = { $gt: 0 };
           } else if (filterType === "outOfStock") {
-            
             query["quantity"] = { $eq: 0 };
           } else if (filterType === "Returnable") {
-            query["productType"] = "Returnable";   
+            query["productType"] = "Returnable";
           } else if (filterType === "Non-Returnable") {
-            query["productType"] = "Non-Returnable";  
+            query["productType"] = "Non-Returnable";
           } else {
             return res.status(400).send({ message: "Invalid filter type." });
           }
         }
-    
-        // Log the final query for debugging
-        console.log("Final Query:", query);
-    
-        // Fetch assets based on the query
+
         const assets = await assetsCollection.find(query).toArray();
-    
-        // If there are no assets, return an empty response
+
         if (assets.length === 0) {
           return res.status(200).send([]);
         }
-    
+
         const hrEmails = assets.map((asset) => asset.hrEmail);
-    
+
         const hrDetails = await userCollection
           .find({ email: { $in: hrEmails } })
           .project({ email: 1, companyName: 1 })
           .toArray();
-    
-        // Combine HR details with asset information
+
         const result = assets.map((asset) => {
           const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
           return { ...asset, companyName: hr?.companyName };
         });
-    
-        // Send the filtered result back to the client
+
         res.status(200).send(result);
       } catch (err) {
-        console.error("Error filtering assets:", err);
+        // console.error("Error filtering assets:", err);
         res.status(500).send({ message: "Internal server error." });
       }
     });
