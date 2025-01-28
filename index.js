@@ -273,6 +273,7 @@ async function run() {
       }
     );
 
+    // Hr Pie Chart
     app.get(
       "/itemRequestStats/:email",
       verifyToken,
@@ -304,7 +305,7 @@ async function run() {
               },
               {
                 $project: {
-                  _id: 0, 
+                  _id: 0,
                   productType: "$_id",
                   totalRequests: 1,
                 },
@@ -319,7 +320,9 @@ async function run() {
 
           const pieChartData = itemRequestStats.map((item) => ({
             productType: item.productType,
-            percentage: parseInt(((item.totalRequests / totalRequests) * 100).toFixed(2)),
+            percentage: parseInt(
+              ((item.totalRequests / totalRequests) * 100).toFixed(2)
+            ),
           }));
 
           res.send(pieChartData);
@@ -329,6 +332,24 @@ async function run() {
         }
       }
     );
+
+    // update User Info
+    app.patch("/usersUpdate/:email", async (req, res) => {
+      const { email } = req.params;
+      const { name, photo } = req.body;
+
+      const user = await userCollection.findOne({ email });
+
+
+      const updateInfo = {
+        $set: {
+          name: name || user?.name,   
+          photo: photo || user?.photo
+        },
+      };
+
+      const result = await userCollection.updateOne({ email }, updateInfo);      res.send(result);
+    });
 
     // Pending Request of an Employee
     app.get("/pendingRequests/:email", verifyToken, async (req, res) => {
