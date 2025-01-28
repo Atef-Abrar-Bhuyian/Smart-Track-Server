@@ -894,8 +894,64 @@ async function run() {
       }
     });
     
+    app.get("/requestAssetsFilter/:email", verifyToken, async (req, res) => {
+      const employeeEmail = req.params.email;
+      const { filterType } = req.query;
     
+      try {
+        let query = { "requests.userEmail": employeeEmail };
     
+      
+        console.log("Initial Query:", query);
+    
+       
+        if (filterType) {
+          if (filterType === "available") {
+            
+            query["quantity"] = { $gt: 0 };
+          } else if (filterType === "outOfStock") {
+            
+            query["quantity"] = { $eq: 0 };
+          } else if (filterType === "Returnable") {
+            query["productType"] = "Returnable";   
+          } else if (filterType === "Non-Returnable") {
+            query["productType"] = "Non-Returnable";  
+          } else {
+            return res.status(400).send({ message: "Invalid filter type." });
+          }
+        }
+    
+        // Log the final query for debugging
+        console.log("Final Query:", query);
+    
+        // Fetch assets based on the query
+        const assets = await assetsCollection.find(query).toArray();
+    
+        // If there are no assets, return an empty response
+        if (assets.length === 0) {
+          return res.status(200).send([]);
+        }
+    
+        const hrEmails = assets.map((asset) => asset.hrEmail);
+    
+        const hrDetails = await userCollection
+          .find({ email: { $in: hrEmails } })
+          .project({ email: 1, companyName: 1 })
+          .toArray();
+    
+        // Combine HR details with asset information
+        const result = assets.map((asset) => {
+          const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
+          return { ...asset, companyName: hr?.companyName };
+        });
+    
+        // Send the filtered result back to the client
+        res.status(200).send(result);
+      } catch (err) {
+        console.error("Error filtering assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
 
     // employee requsted assets
     app.get("/employeesAssets/:email", verifyToken, async (req, res) => {
