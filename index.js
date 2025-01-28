@@ -803,8 +803,8 @@ async function run() {
 
     // Search for employee requested assets by product name
     app.get("/searchAsset/:email", verifyToken, async (req, res) => {
-      const employeeEmail = req.params.email; 
-      const { productName } = req.query; 
+      const employeeEmail = req.params.email;
+      const { productName } = req.query;
 
       try {
         const query = {
@@ -833,6 +833,69 @@ async function run() {
         res.status(500).send({ message: "Internal server error." });
       }
     });
+
+    // Filter Employee assets request
+    app.get("/assetsRequestFilter/:email", verifyToken, async (req, res) => {
+      const employeeEmail = req.params.email;
+      const { filterType } = req.query; // This will hold values like 'Pending', 'Approved', 'Returnable', or 'Non-Returnable'
+    
+      try {
+        let query = { "requests.userEmail": employeeEmail };
+    
+        // Log the initial query for debugging
+        console.log("Initial Query:", query);
+    
+        // Add filter conditions based on the filterType
+        if (filterType) {
+          if (filterType === "Pending") {
+            // Filter for assets that have at least one 'Pending' request
+            query["requests.status"] = "Pending"; // Look for status 'Pending' in any request
+          } else if (filterType === "Approved") {
+            // Filter for assets that have at least one 'Approved' request
+            query["requests.status"] = "Approved"; // Look for status 'Approved' in any request
+          } else if (filterType === "Returnable") {
+            query["productType"] = "Returnable";   // Filter only Returnable items
+          } else if (filterType === "Non-Returnable") {
+            query["productType"] = "Non-Returnable";  // Filter only Non-Returnable items
+          } else {
+            return res.status(400).send({ message: "Invalid filter type." });
+          }
+        }
+    
+        // Log the final query for debugging
+        console.log("Final Query:", query);
+    
+        // Fetch assets based on the query
+        const assets = await assetsCollection.find(query).toArray();
+    
+        // If there are no assets, return an empty response
+        if (assets.length === 0) {
+          return res.status(200).send([]);
+        }
+    
+        const hrEmails = assets.map((asset) => asset.hrEmail);
+    
+        const hrDetails = await userCollection
+          .find({ email: { $in: hrEmails } })
+          .project({ email: 1, companyName: 1 })
+          .toArray();
+    
+        // Combine HR details with asset information
+        const result = assets.map((asset) => {
+          const hr = hrDetails.find((hr) => hr.email === asset.hrEmail);
+          return { ...asset, companyName: hr?.companyName };
+        });
+    
+        // Send the filtered result back to the client
+        res.status(200).send(result);
+      } catch (err) {
+        console.error("Error filtering assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
+    });
+    
+    
+    
 
     // employee requsted assets
     app.get("/employeesAssets/:email", verifyToken, async (req, res) => {
