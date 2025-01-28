@@ -482,7 +482,7 @@ async function run() {
     });
 
     // filter hr asset list page
-    app.get("/requestAssetsFilter/:email", verifyToken, async (req, res) => {
+    app.get("/requestAssetsFilterHr/:email", verifyToken, async (req, res) => {
       const hrEmail = req.params.email;
       const { filterType } = req.query;
 
