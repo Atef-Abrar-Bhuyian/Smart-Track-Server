@@ -340,15 +340,15 @@ async function run() {
 
       const user = await userCollection.findOne({ email });
 
-
       const updateInfo = {
         $set: {
-          name: name || user?.name,   
-          photo: photo || user?.photo
+          name: name || user?.name,
+          photo: photo || user?.photo,
         },
       };
 
-      const result = await userCollection.updateOne({ email }, updateInfo);      res.send(result);
+      const result = await userCollection.updateOne({ email }, updateInfo);
+      res.send(result);
     });
 
     // Pending Request of an Employee
@@ -799,6 +799,39 @@ async function run() {
 
       const result = await assetsCollection.updateOne(query, update);
       res.status(200).send(result);
+    });
+
+    // Search for employee requested assets by product name
+    app.get("/searchAsset/:email", verifyToken, async (req, res) => {
+      const employeeEmail = req.params.email; 
+      const { productName } = req.query; 
+
+      try {
+        const query = {
+          "requests.userEmail": employeeEmail,
+          productName: { $regex: productName, $options: "i" },
+        };
+
+        const assets = await assetsCollection.find(query).toArray();
+
+        const hrEmails = assets?.map((asset) => asset?.hrEmail);
+
+        const hrDetails = await userCollection
+          .find({ email: { $in: hrEmails } })
+          .project({ email: 1, companyName: 1 })
+          .toArray();
+
+        const result = assets.map((asset) => {
+          const hr = hrDetails.find((hr) => hr.email === asset?.hrEmail);
+          return { ...asset, companyName: hr?.companyName };
+        });
+
+        // Send the result back to the client
+        res.status(200).send(result);
+      } catch (err) {
+        console.error("Error searching for assets:", err);
+        res.status(500).send({ message: "Internal server error." });
+      }
     });
 
     // employee requsted assets
