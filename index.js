@@ -526,6 +526,22 @@ async function run() {
       }
     });
 
+    // Hr Asset List Sort
+    app.get("/assetListSort/:email", verifyToken, async (req, res) => {
+      const hrEmail = req.params.email;
+      const { filterType } = req.query;
+
+      const order = filterType === "desc" ? -1 : 1;
+      const query = { hrEmail: hrEmail };
+
+      const assets = await assetsCollection
+        .find(query)
+        .sort({ quantity: order })
+        .toArray();
+
+      res.status(200).send(assets);
+    });
+
     app.patch("/assetsList/:id", verifyToken, verifyAdmin, async (req, res) => {
       const assetId = req.params.id;
       const { hrEmail, quantity } = req.body;
