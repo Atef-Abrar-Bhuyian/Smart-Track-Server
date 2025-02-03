@@ -13,7 +13,7 @@ The Smart Track Server provides the backend for managing assets and user request
 - **Backend**: Node.js, Express.js
 - **Database**: MongoDB
 - **Authentication**: Firebase
-- **Payment**: Stripe and sslcommerz
+- **Payment**: Stripe
 - **Libraries**: Mongoose, Stripe, dotenv, cors, body-parser
 
 ## API Endpoints
